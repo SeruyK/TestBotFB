@@ -4,15 +4,15 @@ let Request = require('request');
 const MongoClient = require('mongodb').MongoClient;
 const assert = require('assert');
 let api = require('fixer-io-node');
-let log = require('winston');
-require('dotenv').config();
+
+
+let token = "EAACrMqcA1ZAwBAPC36SVdMOZCNVBGIdlVPZAUd2eYkwXyqXOIgWb9n9EYNBOmsM58yfgGUHsWPVHr8zbMc6vZCDwzqhEGibt6ZBH9mT6bQT9ycP0XARrEwZA1j7P5D6O8zfGDLntD1kRvBCtIjuq4s0mm6H1v7TKrgSm7j1qZCIdk6EzBfIvRHy";
 
 let controller = Botkit.facebookbot({
     //
-    verify_token: process.env.verify_token,
-    access_token: process.env.access_token
+    verify_token: "11",
+    access_token: token
 });
-
 let webserver = require('./server.js')(controller);
 
 const url = 'mongodb://localhost:27017';
@@ -24,8 +24,7 @@ const insertUser = function (numberPhon, userId, db, callback) {
     const collection = db.collection('users');
     collection.insertOne({userId: userId, numberPhone: numberPhon}, function (err, res) {
         if (err) throw err;
-        log.info("++++++++++User inserted+++++++++");
-
+        console.log("++++++++++User inserted+++++++++")
     })
 };
 
@@ -33,7 +32,7 @@ const updateHistory = function (currency, dateNow, userId, db, callback) {
     const collection = db.collection('userHistory');
     collection.insertOne({userId: userId, currency: currency, dataNow: dateNow}, function (err, res) {
         if (err) throw err;
-        log.info("++++++++++Histori updated+++++++++");
+        console.log("++++++++++Histori updated+++++++++")
     })
 };
 
@@ -65,47 +64,45 @@ function findUser(messageText, userid, db, callback) {
 }
 
 controller.hears('(.*)', 'facebook_postback', function (bot, message) {
-
-    let currency1 = message.text.substring(0, 3);
-    let currency = message.text;//.substring(7, 10);
+    let currency = message.text;
     let theDate = new Date(message.timestamp);
     let dataString = theDate.toGMTString();
-    log.info(currency1+"  --------------------   "+currency);
-    api.base(currency1).then(function (result) {
+
+    api.base('USD').then(function (result) {
         switch (currency) {
-            case "EUR -> USD":
-                currency1 = currency1 + " = " + result.rates.USD + " USD";
+            case "EUR":
+                currency = currency + " = " + result.rates.EUR + " USD";
                 break;
-            case "USD -> PLN":
-                currency1 = currency1 + " = " + result.rates.PLN + " PLN";
+            case "GBP":
+                currency = currency + " = " + result.rates.GBP + " GBP";
                 break;
-            case "PLN -> GBP":
-                currency1 = currency1 + " = " + result.rates.GBP + " GBP";
+            case "PLN":
+                currency = currency + " = " + result.rates.PLN + " USD";
                 break;
             default:
-                currency1 = currency1 + " = " + result.rates.USD + "USD";
+                currency = currency + " = " + result.rates.USD + "USD";
                 break;
         }
         MongoClient.connect(url, function (err, client) {
             assert.equal(null, err);
-            log.info("Connected successfully to server");
+            console.log("Connected successfully to server");
             const db = client.db(dbName);
-            updateHistory(currency1, dataString, message.user, db, function () {
+            updateHistory(currency, dataString, message.user, db, function () {
             });
             client.close();
         });
 
-        bot.reply(message, currency1);
+        bot.reply(message, currency);
         currencyButtons(message);
     }).catch(function (error) {
-        log.error(error)
+        console.log(error)
     })
 
 });
 
 controller.hears('Show ', 'message_received', function (bot, message) {
     let currency = message.text.substring(5, 8);
-    log.info(currency);
+    console.log(currency);
     let theDate = new Date(message.timestamp);
     let dataString = theDate.toGMTString();
     api.base('USD').then(function (result) {
@@ -125,7 +122,7 @@ controller.hears('Show ', 'message_received', function (bot, message) {
         }
         MongoClient.connect(url, function (err, client) {
             assert.equal(null, err);
-            log.info("Connected successfully to server");
+            console.log("Connected successfully to server");
             const db = client.db(dbName);
             updateHistory(currency, dataString, message.user, db, function () {
             });
@@ -135,7 +132,7 @@ controller.hears('Show ', 'message_received', function (bot, message) {
         bot.reply(message, currency);
         currencyButtons(message);
     }).catch(function (error) {
-        log.error(error)
+        console.log(error)
     })
 });
 
@@ -159,13 +156,13 @@ const quickReplyPhonNumber = function (message) {
     Request({
             uri: 'https://graph.facebook.com/v2.6/me/messages',
             qs: {
-                access_token: process.env.access_token
+                access_token: token
             },
             method: 'POST',
             json: messageData
 
         }, function (error, response, body) {
-            if (error) log.error(error);
+            if (error) console.log(error);
         }
     );
 }
@@ -208,17 +205,17 @@ const currencyButtons = function (message) {
                     buttons: [
                         {
                             type: "postback",
-                            title: "EUR -> USD",
-                            payload: "EUR -> USD"
+                            title: "EUR",
+                            payload: "EUR"
 
                         }, {
                             type: "postback",
-                            title: "USD -> PLN",
-                            payload: "USD -> PLN"
+                            title: "PLN",
+                            payload: "PLN"
                         }, {
                             type: "postback",
-                            title: "PLN -> GBP",
-                            payload: "PLN -> GBP"
+                            title: "GBP",
+                            payload: "GBP"
                         },
                     ]
                 }
@@ -229,28 +226,28 @@ const currencyButtons = function (message) {
     Request({
             uri: 'https://graph.facebook.com/v2.6/me/messages',
             qs: {
-                access_token: process.env.access_token
+                access_token: token
             },
             method: 'POST',
             json: messageData
 
         }, function (error, response, body) {
-            if (error) log.error(error);
+            if (error) console.log(error);
         }
     );
 }
 controller.hears('(.*)', 'message_received', function (bot, message) {
 
-    log.info(message.text);
+    console.log(message.text);
     MongoClient.connect(url, function (err, client) {
         assert.equal(null, err);
-        log.info("Connected successfully to server");
+        console.log("Connected successfully to server");
 
         const db = client.db(dbName);
         let isUser = false;
         findUser(message.text, message.user, db, function (isUser) {
 
-           log.debug("==1========" + isUser + "==========" + message.user);
+           // console.log("==1========" + isUser + "==========" + message.user);
             let ID = message.user;
 
             let messageData;

@@ -12,10 +12,12 @@
   "dependencies": {
     "body-parser": "^1.17.2",
     "botkit": "^0.5.4",
+    "dotenv": "^5.0.1",
     "express": "^4.15.3",
     "fixer-io-node": "^1.0.2",
     "mongodb": "^3.1.0-beta4",
-    "promise": "^8.0.1"
+    "promise": "^8.0.1",
+    "winston": "^2.4.2"
   },
   "engines": {
     "node": "8.1.x"
