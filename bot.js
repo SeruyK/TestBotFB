@@ -12,133 +12,60 @@ let controller = Botkit.facebookbot({
     verify_token: process.env.verify_token,
     access_token: process.env.access_token
 });
-
 let webserver = require('./server.js')(controller);
-
 const url = 'mongodb://localhost:27017';
-
 const dbName = 'chatdb';
+const catalogUsers = 'myUusertest';
 
 
-const insertUser = function (numberPhon, userId, db, callback) {
-    const collection = db.collection('users');
-    collection.insertOne({userId: userId, numberPhone: numberPhon}, function (err, res) {
-        if (err) throw err;
-        log.info("++++++++++User inserted+++++++++");
-
-    })
-};
-
-const updateHistory = function (currency, dateNow, userId, db, callback) {
-    const collection = db.collection('userHistory');
-    collection.insertOne({userId: userId, currency: currency, dataNow: dateNow}, function (err, res) {
-        if (err) throw err;
-        log.info("++++++++++Histori updated+++++++++");
-    })
-};
 
 
-function findUser(messageText, userid, db, callback) {
-
-    const collection = db.collection('users');
-    collection.find({}).toArray(function (err, docs) {
-        assert.equal(err, null);
-        let isUser = false;
-
-        docs.forEach(function (item) {
-            if (item.userId != userid) {
-                isUser = true;
-            }
-        });
-        if (!isUser) {
-            let reg = /^(\+{1})([0-9]+)$/;
-            if (reg.test(messageText)) {
-                insertUser(messageText, userid, db, function () {
-                });
-                isUser = true;
-            }
-        }
-
-        callback(isUser);
-    });
-
-}
-
-controller.hears('(.*)', 'facebook_postback', function (bot, message) {
+controller.hears('(.*)', 'facebook_postback', async function (bot, message) {
 
     let currency1 = message.text.substring(0, 3);
     let currency = message.text;//.substring(7, 10);
     let theDate = new Date(message.timestamp);
     let dataString = theDate.toGMTString();
-    log.info(currency1+"  --------------------   "+currency);
-    api.base(currency1).then(function (result) {
-        switch (currency) {
-            case "EUR -> USD":
-                currency1 = currency1 + " = " + result.rates.USD + " USD";
-                break;
-            case "USD -> PLN":
-                currency1 = currency1 + " = " + result.rates.PLN + " PLN";
-                break;
-            case "PLN -> GBP":
-                currency1 = currency1 + " = " + result.rates.GBP + " GBP";
-                break;
-            default:
-                currency1 = currency1 + " = " + result.rates.USD + "USD";
-                break;
-        }
-        MongoClient.connect(url, function (err, client) {
-            assert.equal(null, err);
-            log.info("Connected successfully to server");
-            const db = client.db(dbName);
-            updateHistory(currency1, dataString, message.user, db, function () {
-            });
-            client.close();
-        });
+    log.info(currency1 + "  --------------------   " + currency);
 
-        bot.reply(message, currency1);
-        currencyButtons(message);
-    }).catch(function (error) {
-        log.error(error)
-    })
+    let result = await api.base(currency1);
+    switch (currency) {
+        case "EUR -> USD":
+            currency1 = currency1 + " = " + result.rates.USD + " USD";
+            break;
+        case "USD -> PLN":
+            currency1 = currency1 + " = " + result.rates.PLN + " PLN";
+            break;
+        case "PLN -> GBP":
+            currency1 = currency1 + " = " + result.rates.GBP + " GBP";
+            break;
+        default:
+            currency1 = currency1 + " = " + result.rates.USD + "USD";
+            break;
+    }
+
+    await updateHistory(currency1, dataString, message.user);
+
+    bot.reply(message, currency1);
+    currencyButtons(message);
 
 });
 
-controller.hears('Show ', 'message_received', function (bot, message) {
-    let currency = message.text.substring(5, 8);
-    log.info(currency);
-    let theDate = new Date(message.timestamp);
-    let dataString = theDate.toGMTString();
-    api.base('USD').then(function (result) {
-        switch (currency.toLowerCase()) {
-            case "eur":
-                currency = currency + " = " + result.rates.EUR + " USD";
-                break;
-            case "gbp":
-                currency = currency + " = " + result.rates.GBP + " GBP";
-                break;
-            case "pln":
-                currency = currency + " = " + result.rates.PLN + " USD";
-                break;
-            default:
-                currency = currency + " = " + result.rates.USD + "USD";
-                break;
-        }
-        MongoClient.connect(url, function (err, client) {
-            assert.equal(null, err);
-            log.info("Connected successfully to server");
-            const db = client.db(dbName);
-            updateHistory(currency, dataString, message.user, db, function () {
-            });
-            client.close();
-        });
+controller.hears('(.*)', 'message_received', async function (bot, message) {
 
-        bot.reply(message, currency);
+    console.log("ok");
+    let isUser = await findUser(message);
+    if (isUser)
         currencyButtons(message);
-    }).catch(function (error) {
-        log.error(error)
-    })
-});
+    else if (isPhone(message.text)){
+        await insertUser(message);
+        currencyButtons(message);
+    }
+    else
+        quickReplyPhonNumber(message);
 
+
+});
 const quickReplyPhonNumber = function (message) {
 
     let ID = message.user;
@@ -169,6 +96,8 @@ const quickReplyPhonNumber = function (message) {
         }
     );
 }
+
+
 const currencyButtons = function (message) {
     let ID = message.user;
     let messageData = {
@@ -176,30 +105,6 @@ const currencyButtons = function (message) {
             id: ID
         },
         message: {
-            // Виводить валюти через  quick reply
-            //---------------------------------------------------
-            //     text: "What currency are you interested in?",
-            //     quick_replies: [
-            //         {
-            //             content_type: 'text',
-            //             title: 'Show EUR',
-            //             payload: 'DEVELOPER_DEFINED_PAYLOAD_FOR_PICKING_RED',
-            //         },
-            //         {
-            //             content_type: 'text',
-            //             title: 'Show PLN',
-            //             payload: 'DEVELOPER_DEFINED_PAYLOAD_FOR_PICKING_RED',
-            //         },
-            //         {
-            //             content_type: 'text',
-            //             title: 'Show GBP',
-            //             payload: 'DEVELOPER_DEFINED_PAYLOAD_FOR_PICKING_RED',
-            //         }
-            //     ]
-            // }
-            //---------------------------------------------------
-            //  Виводить валюти через  post back button
-            //===================================================
             attachment: {
                 type: "template",
                 payload: {
@@ -223,7 +128,6 @@ const currencyButtons = function (message) {
                     ]
                 }
             }
-            //====================================================
         }
     }
     Request({
@@ -239,27 +143,71 @@ const currencyButtons = function (message) {
         }
     );
 }
-controller.hears('(.*)', 'message_received', function (bot, message) {
 
-    log.info(message.text);
-    MongoClient.connect(url, function (err, client) {
-        assert.equal(null, err);
-        log.info("Connected successfully to server");
+function isPhone(phoneNumber) {
+    let reg = /^(\+{1})([0-9]+)$/;
+    if (reg.test(phoneNumber))
+        return true;
+    else
+        return false;
+};
 
+
+async function findUser(message) {
+    let client;
+
+         try {
+            client = await MongoClient.connect(url);
+            const db = client.db(dbName);
+            const collection = await db.collection(catalogUsers);
+            const result = await collection.find({}).toArray();
+            for (let i = 0; i < result.length; i++)
+                if (result[i].userId == message.user) {
+                    client.close();
+                    return true;
+                }
+             client.close();
+            return false;
+
+
+    } catch (err) {
+        console.log(err);
+    }
+}
+
+
+ const insertUser = async function (numberPhon, userId, db, callback) {
+
+     let client;
+     try {
+         client = await MongoClient.connect(url);
+         const db = client.db(dbName);
+         const collection = await db.collection(catalogUsers);
+         collection.insertOne({userId: userId, numberPhone: numberPhon}, function (err, res) {
+             if (err) throw err;
+             log.info("++++++++++User inserted+++++++++");
+         })
+         client.close();
+         return false;
+     } catch (err) {
+         log.error(err);
+     }
+};
+
+
+const updateHistory = async function (currency, dateNow, userId) {
+    let client;
+    try {
+        client = await MongoClient.connect(url);
         const db = client.db(dbName);
-        let isUser = false;
-        findUser(message.text, message.user, db, function (isUser) {
-
-           log.debug("==1========" + isUser + "==========" + message.user);
-            let ID = message.user;
-
-            let messageData;
-            if (!isUser)
-                quickReplyPhonNumber(message);
-            else
-                currencyButtons(message);
-            client.close();
-
-        });
-    });
-});
+        const collection = await db.collection('userHistory');
+        collection.insertOne({userId: userId, currency: currency, dataNow: dateNow}, function (err, res) {
+            if (err) throw err;
+            log.info("++++++++++Histori updated+++++++++");
+        })
+        client.close();
+        return false;
+    } catch (err) {
+        log.error(err);
+    }
+};
